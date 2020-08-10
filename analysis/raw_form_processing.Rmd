@@ -12,6 +12,7 @@ library(janitor)
 library(splitstackshape)
 ```
 
+##read in data
 ```{r}
 # note: did a first pass by hand on data to remove weird characters
 
@@ -82,6 +83,7 @@ processed_data_exp1 <- processed_data_exp1s %>%
   
 ```
 
+##visualize and summarize (descriptives)
 ```{r}
 hist(processed_data_exp1$n_experiments)
 hist(processed_data_exp1$sample_age)
