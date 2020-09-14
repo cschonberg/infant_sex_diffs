@@ -94,6 +94,7 @@ hist(filter(processed_data_exp1, n_participants<2000)$n_participants)
 summarised_exp1_data <- processed_data_exp1 %>% 
   summarise(n_total_papers = n(),
             n_hypothesized_difference = sum(hypothesis_numeric),
+            n_checked = sum(sexdiff_analysis_numeric),
             n_checked_without_hypothesis = sum(checked_diff_without_hypothesis),
             n_found_diff_without_hypothesis = sum(found_diff_without_hypothesis),
             samplesize_min = min(n_participants),
