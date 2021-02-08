@@ -14,9 +14,14 @@ library(splitstackshape)
 
 ##read in data
 ```{r}
-# note: did a first pass by hand on data to remove weird characters
+# note: did a first pass by hand on data to:
+# - remove weird characters and delete harrison et al 2011
+# - add reliability coding indicator variable (0 = no, 1 = yes) after last experiment question (before 4 confirmation questions)
+# - add longitudinal coding indicator variable (0 = no, 1 = yes) after reliability variable
+# - remove duplicates that weren't reliability coding (i.e. added by the same person)
+## outstanding Q: what to do about longitudinal studies & studies with multiple age groups? (how to code age)
 
-raw_data <- read_csv("../responses_8-10-2020.csv") %>%
+raw_data <- read_csv("../responses_2-8-21.csv") %>%
   clean_names() %>% 
   rename(ra_email = email_address,
          authors = 3,
@@ -51,10 +56,12 @@ raw_data <- read_csv("../responses_8-10-2020.csv") %>%
          exp4_sexdiff_reported = 32,
          exp4_sexdiff_stats = 33,
          is_more_exps = 34,
-         more_exps_info = 35
+         more_exps_info = 35,
+         reliability_coding = 36
          ) %>% 
-  select(-(36:39)) %>% 
-  remove_empty("cols")
+  select(-(38:41)) %>% 
+  remove_empty("cols") %>% 
+  filter(reliability_coding==0 & is_longitudinal==0)
 
 processed_data_exp1s <- raw_data %>%
   select(authors, year, journal, keywords, n_experiments, hypothesis_present, n_boys_n_girls, sample_age,
@@ -65,21 +72,20 @@ processed_data_exp1s <- raw_data %>%
          checked_diff_without_hypothesis = ifelse((hypothesis_numeric==0 & sexdiff_analysis_numeric==1),1,0),
          found_diff_without_hypothesis = ifelse((hypothesis_numeric==0 & sexdiff_reported_numeric==1),1,0)
          ) %>% 
-  cSplit("n_boys_n_girls", sep=";") %>% 
-  cSplit("n_boys_n_girls_1", sep=" ", drop=FALSE) %>% 
-  cSplit("n_boys_n_girls_2",sep= " ", drop=FALSE) %>% 
-  rename(n_boys = n_boys_n_girls_1_1, n_girls = n_boys_n_girls_2_1) %>% 
-  filter(!is.na(n_girls)) %>% 
-  select(-n_boys_n_girls_1_2, -n_boys_n_girls_2_2)
+  separate(., n_boys_n_girls, into = c("nboys", "ngirls"), sep="; ") %>% 
+  filter(!(is.na(ngirls))) %>% 
+  separate(., nboys, into=c("n_boys", "boys")) %>% 
+  separate(., ngirls, into=c("n_girls","girls")) %>% 
+  select(-boys, -girls)
 
-#weird factor stuff going on with boys but not girls? ok
-processed_data_exp1s$n_boys = as.numeric(as.character(processed_data_exp1s$n_boys))
+#make numeric
+processed_data_exp1s$n_boys = as.numeric(processed_data_exp1s$n_boys)
 processed_data_exp1s$n_girls = as.numeric(processed_data_exp1s$n_girls)
+processed_data_exp1s$n_experiments = as.numeric(processed_data_exp1s$n_experiments)
+processed_data_exp1s$sample_age = as.numeric(processed_data_exp1s$sample_age)
 
 processed_data_exp1 <- processed_data_exp1s %>% 
-  mutate(n_participants = n_boys + n_girls) %>% 
-  distinct() %>% 
-  select(-n_boys_n_girls_1, -n_boys_n_girls_2)
+  mutate(n_participants = n_boys + n_girls)
   
 ```
 
@@ -89,7 +95,7 @@ hist(processed_data_exp1$n_experiments)
 hist(processed_data_exp1$sample_age)
 
 #look at histogram for non-outlier sample size papers
-hist(filter(processed_data_exp1, n_participants<2000)$n_participants)
+hist(filter(processed_data_exp1, n_participants<500)$n_participants)
 
 summarised_exp1_data <- processed_data_exp1 %>% 
   summarise(n_total_papers = n(),
@@ -99,7 +105,8 @@ summarised_exp1_data <- processed_data_exp1 %>%
             n_found_diff_without_hypothesis = sum(found_diff_without_hypothesis),
             samplesize_min = min(n_participants),
             samplesize_max = max(n_participants),
-            samplesize_mean = mean(n_participants)
+            samplesize_mean = mean(n_participants),
+            samplesize_median = median(n_participants)
             )
 ```
 
