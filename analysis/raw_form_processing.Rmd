@@ -9,19 +9,20 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(janitor)
-library(splitstackshape)
 ```
 
+#easy stuff first: exclude longitudinal and multi-age group studies
 ##read in data
 ```{r}
 # note: did a first pass by hand on data to:
 # - remove weird characters and delete harrison et al 2011
 # - add reliability coding indicator variable (0 = no, 1 = yes) after last experiment question (before 4 confirmation questions)
 # - add longitudinal coding indicator variable (0 = no, 1 = yes) after reliability variable
+# - add multi-age group coding indicator variable (0 = no, 1 = yes) after longitudinal variable
 # - remove duplicates that weren't reliability coding (i.e. added by the same person)
 ## outstanding Q: what to do about longitudinal studies & studies with multiple age groups? (how to code age)
 
-raw_data <- read_csv("../responses_2-8-21.csv") %>%
+raw_data <- read_csv("../responses_3-1-21.csv") %>%
   clean_names() %>% 
   rename(ra_email = email_address,
          authors = 3,
@@ -59,16 +60,19 @@ raw_data <- read_csv("../responses_2-8-21.csv") %>%
          more_exps_info = 35,
          reliability_coding = 36
          ) %>% 
-  select(-(38:41)) %>% 
+  select(-(39:42)) %>% 
   remove_empty("cols") %>% 
-  filter(reliability_coding==0 & is_longitudinal==0)
+  filter(reliability_coding==0)
 
 processed_data_exp1s <- raw_data %>%
+  filter(is_longitudinal==0 & is_multi_age==0) %>% 
   select(authors, year, journal, keywords, n_experiments, hypothesis_present, n_boys_n_girls, sample_age,
          sexdiff_analysis_reported, sexdiff_reported) %>% 
   mutate(hypothesis_numeric = ifelse(hypothesis_present=="Yes",1,0),
          sexdiff_analysis_numeric = ifelse(sexdiff_analysis_reported=="Yes",1,0),
          sexdiff_reported_numeric = ifelse(sexdiff_reported=="Yes",1,0),
+         checked_diff_with_hypothesis = ifelse((hypothesis_numeric==1 & sexdiff_analysis_numeric==1),1,0),
+         found_diff_with_hypothesis = ifelse((hypothesis_numeric==1 & sexdiff_reported_numeric==1),1,0),
          checked_diff_without_hypothesis = ifelse((hypothesis_numeric==0 & sexdiff_analysis_numeric==1),1,0),
          found_diff_without_hypothesis = ifelse((hypothesis_numeric==0 & sexdiff_reported_numeric==1),1,0)
          ) %>% 
@@ -101,13 +105,44 @@ summarised_exp1_data <- processed_data_exp1 %>%
   summarise(n_total_papers = n(),
             n_hypothesized_difference = sum(hypothesis_numeric),
             n_checked = sum(sexdiff_analysis_numeric),
+            n_checked_with_hypothesis = sum(checked_diff_with_hypothesis),
             n_checked_without_hypothesis = sum(checked_diff_without_hypothesis),
+            n_found_diff_with_hypothesis = sum(found_diff_with_hypothesis),
             n_found_diff_without_hypothesis = sum(found_diff_without_hypothesis),
             samplesize_min = min(n_participants),
             samplesize_max = max(n_participants),
             samplesize_mean = mean(n_participants),
             samplesize_median = median(n_participants)
             )
+```
+  
+  
+## see if i can script processing the longitudinal and multi-age group data
+```{r}
+long_multi <- raw_data %>% 
+  filter(is_longitudinal==1 | is_multi_age==1) %>% 
+  remove_empty("cols")
+
+#no just write a csv and do it by hand
+#write_csv(long_multi, "only_longitudinal_or_multi_age.csv")
+
+long_multi_formatted <- read_csv("only_longitudinal_or_multi_age_formatted.csv") %>% 
+  select(-sample_age, -n_boys_n_girls) 
+
+long_ages <- long_multi_formatted %>% 
+  select(-c(n_boys_n_girls_age_1, n_boys_n_girls_age_2, n_boys_n_girls_age_3, n_boys_n_girls_age_4)) %>% 
+  select(timestamp, authors, year, journal, age_1, age_2, age_3, age_4) %>% 
+  pivot_longer(c(age_1, age_2, age_3, age_4), names_to="age_group",values_to = "sample_age")
+
+long_sexes <- long_multi_formatted %>% 
+  select(-c(age_1, age_2, age_3, age_4)) %>% 
+  pivot_longer(c(n_boys_n_girls_age_1, n_boys_n_girls_age_2, n_boys_n_girls_age_3, n_boys_n_girls_age_4),
+               names_to="age_group", values_to="n_boys_n_girls")
+long_sexes$age_group <- str_replace_all(long_sexes$age_group, "n_boys_n_girls_","")
+
+formatted_longit_cross_data <- long_sexes %>% 
+  left_join(long_ages, by=c("timestamp","authors","year","journal", "age_group"))
+
 ```
 
 
