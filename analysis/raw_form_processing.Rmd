@@ -158,7 +158,7 @@ formatted_longit_cross_data <- long_sexes %>%
 ## topics
 
 ```{r}
-str_split(processed_data_exp1$keywords,pattern=",") %>%
+str_split(processed_data_exp1$keywords[63],pattern=",") %>%
   unlist() %>%
   trimws() %>%
   unique()
